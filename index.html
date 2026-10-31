@@ -1,0 +1,1322 @@
+<!DOCTYPE html>
+<html lang="ru" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ПАШОТ | Цифровое меню & Deep Lounge</title>
+
+  <!-- Google Fonts: Unbounded, Montserrat, Caveat -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Unbounded:wght@700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              orange: '#E6641E',
+              orangeDark: '#B8450A',
+              orangeGlow: 'rgba(230, 100, 30, 0.45)',
+              cream: '#F5F2EB',
+              muted: '#9E9488',
+              card: '#14110E',
+              cardBorder: '#29221C',
+              bg: '#0A0807'
+            }
+          },
+          fontFamily: {
+            display: ['Unbounded', 'sans-serif'],
+            sans: ['Montserrat', 'sans-serif'],
+            script: ['Caveat', 'cursive']
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      background-color: #0A0807;
+      color: #F5F2EB;
+      font-family: 'Montserrat', sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* Фоновый канвас с армированной сеткой */
+    #ambient-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Мягкий световой ореол курсора */
+    #cursor-glow {
+      position: fixed;
+      width: 460px;
+      height: 460px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(230, 100, 30, 0.16) 0%, rgba(230, 100, 30, 0.03) 50%, transparent 70%);
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      z-index: 1;
+      display: none;
+      mix-blend-mode: screen;
+      will-change: transform;
+    }
+    @media (pointer: fine) {
+      #cursor-glow { display: block; }
+    }
+
+    /* Влажный Ripple-эффект */
+    .ripple-surface {
+      position: relative;
+      overflow: hidden;
+    }
+    .ripple-wave {
+      position: absolute;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.45) 0%, rgba(230, 100, 30, 0.55) 60%, transparent 100%);
+      transform: scale(0);
+      animation: rippleAnim 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+      pointer-events: none;
+    }
+    @keyframes rippleAnim {
+      to {
+        transform: scale(3.5);
+        opacity: 0;
+      }
+    }
+
+    /* 3D-Tilt карточки с глянцевым бликом */
+    .dish-card-3d {
+      transform-style: preserve-3d;
+      perspective: 1000px;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+      will-change: transform;
+    }
+    .card-glare {
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: radial-gradient(circle 180px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.08), transparent 80%);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .dish-card-3d:hover .card-glare {
+      opacity: 1;
+    }
+
+    /* Скролл-ревил */
+    .reveal-on-scroll {
+      opacity: 0;
+      transform: translateY(24px) scale(0.985);
+      transition: opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1), transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+      will-change: transform, opacity;
+    }
+    .reveal-on-scroll.revealed {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    /* Бегущая строка */
+    .marquee-track {
+      display: flex;
+      width: max-content;
+      animation: marqueeRun 32s linear infinite;
+    }
+    .marquee-track:hover {
+      animation-play-state: paused;
+    }
+    @keyframes marqueeRun {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    /* Скрытие полос прокрутки */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* Анимированная летающая точка в корзину */
+    .fly-dot {
+      position: fixed;
+      width: 12px;
+      height: 12px;
+      background-color: #E6641E;
+      border-radius: 50%;
+      box-shadow: 0 0 14px #E6641E, 0 0 24px #FFA24C;
+      pointer-events: none;
+      z-index: 100;
+      transition: transform 0.65s cubic-bezier(0.2, 0.9, 0.3, 1.2), opacity 0.65s ease;
+    }
+  </style>
+</head>
+<body class="relative selection:bg-brand-orange selection:text-white">
+
+  <!-- Интерактивный канвас: Армированная сетка + Боке -->
+  <canvas id="ambient-canvas"></canvas>
+  <div id="cursor-glow"></div>
+
+  <!-- Верхняя шапка с Deep House Lounge плеером и корзиной -->
+  <header class="sticky top-0 z-40 bg-[#0A0807]/90 backdrop-blur-md border-b border-[#2A241F]">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      
+      <!-- Логотип ПАШОТ -->
+      <div class="flex items-center gap-3">
+        <a href="#" class="font-display font-black text-2xl sm:text-3xl tracking-tight text-brand-cream hover:text-brand-orange transition-colors">
+          ПАШОТ
+        </a>
+        <span class="text-brand-muted/40 font-light text-xl">|</span>
+        <div class="flex flex-col">
+          <span class="text-[9px] sm:text-[10px] tracking-widest uppercase font-bold text-brand-orange">больше чем кафе</span>
+          <span class="text-[10px] sm:text-[11px] tracking-wider uppercase text-brand-muted font-medium">про еду, людей и кофе</span>
+        </div>
+      </div>
+
+      <!-- Правая панель: Deep House плеер & Корзина -->
+      <div class="flex items-center gap-2 sm:gap-4">
+        
+        <!-- Deep House Lounge плеер с визуализатором -->
+        <div class="flex items-center bg-[#15120F] border border-brand-orange/30 hover:border-brand-orange rounded-full px-2.5 sm:px-3.5 py-1.5 shadow-lg shadow-black/60 transition-all">
+          <button id="audio-play-btn" class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-brand-orange hover:bg-brand-orangeDark text-white flex items-center justify-center transition-transform active:scale-90" title="Play/Pause Deep House Lounge">
+            <svg id="play-icon" class="w-3.5 h-3.5 translate-x-0.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            <svg id="pause-icon" class="w-3.5 h-3.5 fill-current hidden" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+          </button>
+
+          <!-- Анимированный спектр-эквалайзер -->
+          <div class="flex items-end gap-1 h-5 mx-2.5" id="audio-bars">
+            <div class="w-1 bg-brand-orange rounded-full h-1.5 transition-all duration-100"></div>
+            <div class="w-1 bg-brand-orange rounded-full h-2 transition-all duration-100"></div>
+            <div class="w-1 bg-brand-orange rounded-full h-1 transition-all duration-100"></div>
+            <div class="w-1 bg-brand-orange rounded-full h-2.5 transition-all duration-100"></div>
+          </div>
+
+          <!-- Название трека и селектор -->
+          <div class="hidden md:flex flex-col text-left">
+            <span id="track-title" class="text-[11px] font-bold text-brand-cream uppercase tracking-wider">Anapa Sunset Lounge</span>
+            <span class="text-[9px] text-brand-orange font-script text-xs -mt-0.5">Deep House 118 BPM ♡</span>
+          </div>
+
+          <button id="track-next-btn" class="ml-1 sm:ml-2 text-brand-muted hover:text-brand-orange p-1 transition-colors" title="Следующий трек">
+            <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+          </button>
+        </div>
+
+        <!-- Кнопка Корзины с бэйджем -->
+        <button id="open-cart-btn" class="ripple-surface relative bg-brand-orange hover:bg-brand-orangeDark text-white px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-full font-bold text-xs sm:text-sm flex items-center gap-2 transition-all shadow-lg shadow-brand-orange/25 active:scale-95">
+          <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>
+          <span class="hidden sm:inline">Выбор</span>
+          <span id="cart-counter" class="bg-black/70 text-brand-orange text-xs px-2 py-0.5 rounded-full font-bold">0</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Hero-секция с интерактивным поиском и статусом -->
+  <section class="relative z-10 max-w-6xl mx-auto px-4 pt-8 sm:pt-12 pb-4 text-center">
+    <div class="flex items-center justify-center gap-3 mb-3">
+      <div class="w-10 h-[2px] bg-brand-orange"></div>
+      <span class="text-brand-orange font-script text-2xl -rotate-2">атмосфера и вкус в Анапе ♡</span>
+      <div class="w-10 h-[2px] bg-brand-orange"></div>
+    </div>
+
+    <h1 class="font-display font-black text-3xl sm:text-5xl md:text-6xl uppercase tracking-tighter text-brand-cream leading-[0.95] mb-4">
+      МЕНЮ <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-orange via-amber-300 to-brand-cream">КАФЕ ПАШОТ</span>
+    </h1>
+
+    <p class="text-brand-muted text-xs sm:text-sm max-w-xl mx-auto mb-7 leading-relaxed">
+      Шесть авторских паст, фирменные завтраки с яйцом-пашот, сливочные рафы и сытные бриошь-тосты. Попробуйте нажать на любое блюдо для выбора соусов и добавок!
+    </p>
+
+    <!-- Поисковая интерактивная строка -->
+    <div class="w-full max-w-lg mx-auto relative">
+      <input type="text" id="menu-search-input" placeholder="Поиск: паста, раф, сырники, хашбраун, смузи..." 
+             class="w-full bg-[#15120F] border border-[#2E251E] focus:border-brand-orange rounded-2xl px-5 py-3.5 pl-12 text-sm text-brand-cream placeholder-brand-muted/60 focus:outline-none focus:ring-2 focus:ring-brand-orange/30 transition-all shadow-2xl">
+      <svg class="w-5 h-5 absolute left-4 top-4 text-brand-orange pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+      </svg>
+      <button id="search-clear-btn" class="hidden absolute right-4 top-3.5 text-brand-muted hover:text-brand-cream text-xs font-bold bg-[#201A16] px-2 py-1 rounded-md">✕</button>
+    </div>
+  </section>
+
+  <!-- Бегущая строка -->
+  <div class="w-full bg-[#14110E] border-y border-[#2A241F] py-2.5 overflow-hidden my-6 relative z-10">
+    <div class="marquee-track flex items-center gap-8 text-xs sm:text-sm font-semibold uppercase tracking-widest text-brand-muted">
+      <span>ПАШОТ АНАПА</span>
+      <span class="text-brand-orange">✦</span>
+      <span class="text-brand-cream">Шесть видов домашней пасты по 400 ₽</span>
+      <span class="text-brand-orange">✦</span>
+      <span>Спешелти рафы и чайный глинтвейн</span>
+      <span class="text-brand-orange">✦</span>
+      <span class="text-brand-cream">ул. Горького 6</span>
+      <span class="text-brand-orange">✦</span>
+      <span class="font-script lowercase text-lg text-brand-orange -mt-0.5">вкусно и уютно ♡</span>
+      <span class="text-brand-orange">✦</span>
+      <span>ПАШОТ АНАПА</span>
+      <span class="text-brand-orange">✦</span>
+      <span class="text-brand-cream">Шесть видов домашней пасты по 400 ₽</span>
+      <span class="text-brand-orange">✦</span>
+      <span>Спешелти рафы и чайный глинтвейн</span>
+      <span class="text-brand-orange">✦</span>
+      <span class="text-brand-cream">ул. Горького 6</span>
+      <span class="text-brand-orange">✦</span>
+      <span class="font-script lowercase text-lg text-brand-orange -mt-0.5">вкусно и уютно ♡</span>
+      <span class="text-brand-orange">✦</span>
+    </div>
+  </div>
+
+  <!-- Липкая панель категорий -->
+  <nav class="sticky top-[57px] sm:top-[65px] z-30 bg-[#0A0807]/95 backdrop-blur-md border-b border-[#2A241F] py-2.5 shadow-xl">
+    <div class="max-w-6xl mx-auto px-4">
+      <div id="category-bar" class="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth">
+        <!-- Кнопки табов рендерятся через JS -->
+      </div>
+    </div>
+  </nav>
+
+  <!-- Основной каталог блюд и напитков -->
+  <main class="max-w-6xl mx-auto px-4 py-8 relative z-10">
+    <div id="menu-sections-container" class="space-y-12">
+      <!-- Секции заполняются из базы MENU_DATA -->
+    </div>
+
+    <!-- Интерактивный блок «ДОБАВЬ ВКУСА И СОУСЫ» -->
+    <div class="mt-14 bg-gradient-to-br from-[#16120F] via-[#100D0B] to-[#0D0A08] border-2 border-brand-orange/60 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden reveal-on-scroll">
+      <div class="absolute -right-12 -top-12 w-48 h-48 bg-brand-orange/15 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <h3 class="font-display font-black text-xl sm:text-2xl uppercase tracking-tight text-brand-cream">
+            ДОБАВЬ ВКУСА В ПАШОТ
+          </h3>
+          <p class="text-xs text-brand-muted mt-0.5">Кликните на добавку, чтобы сразу включить её в заказ</p>
+        </div>
+        <span class="font-script text-2xl text-brand-orange -rotate-3">к любому блюду ♡</span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- К напиткам -->
+        <div class="bg-[#0A0807]/60 rounded-2xl p-4 border border-[#2A241F]">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-brand-orange mb-3">К напиткам</h4>
+          <div class="space-y-2.5 text-sm">
+            <div class="flex justify-between items-center text-brand-cream hover:bg-[#1A1511] p-1.5 rounded-lg transition-colors cursor-pointer" onclick="addToCart('Альт. молоко (Кокос/Банан/Миндаль)', 100, event)">
+              <span>+ Альтернативное молоко <span class="text-xs text-brand-muted">(кокос/банан/миндаль)</span></span>
+              <span class="font-bold font-display text-brand-orange">+ 100 ₽</span>
+            </div>
+            <div class="flex justify-between items-center text-brand-cream hover:bg-[#1A1511] p-1.5 rounded-lg transition-colors cursor-pointer" onclick="addToCart('Сироп дополнительный', 50, event)">
+              <span>+ Сироп в ассортименте</span>
+              <span class="font-bold font-display text-brand-orange">+ 50 ₽</span>
+            </div>
+            <div class="flex justify-between items-center text-brand-cream hover:bg-[#1A1511] p-1.5 rounded-lg transition-colors cursor-pointer" onclick="addToCart('Дополнительный шот эспрессо', 100, event)">
+              <span>+ Дополнительный шот эспрессо</span>
+              <span class="font-bold font-display text-brand-orange">+ 100 ₽</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Соусы и добавки к кухне -->
+        <div class="bg-[#0A0807]/60 rounded-2xl p-4 border border-[#2A241F]">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-brand-orange mb-2.5">Соусы к кухне (по 60 ₽)</h4>
+          <div class="grid grid-cols-3 gap-2 mb-3">
+            <button onclick="addToCart('Соус Тар-Тар', 60, event)" class="bg-[#15120F] hover:bg-brand-orange hover:text-white p-2 rounded-xl text-xs font-medium border border-[#2A241F] transition-colors">Тар-Тар</button>
+            <button onclick="addToCart('Соус Унаги', 60, event)" class="bg-[#15120F] hover:bg-brand-orange hover:text-white p-2 rounded-xl text-xs font-medium border border-[#2A241F] transition-colors">Унаги</button>
+            <button onclick="addToCart('Соус Сырный', 60, event)" class="bg-[#15120F] hover:bg-brand-orange hover:text-white p-2 rounded-xl text-xs font-medium border border-[#2A241F] transition-colors">Сырный</button>
+            <button onclick="addToCart('Соус Ореховый', 60, event)" class="bg-[#15120F] hover:bg-brand-orange hover:text-white p-2 rounded-xl text-xs font-medium border border-[#2A241F] transition-colors">Ореховый</button>
+            <button onclick="addToCart('Соус Сладкий чили', 60, event)" class="bg-[#15120F] hover:bg-brand-orange hover:text-white p-2 rounded-xl text-xs font-medium border border-[#2A241F] transition-colors">Сладкий чили</button>
+            <button onclick="addToCart('Соус Кетчуп', 60, event)" class="bg-[#15120F] hover:bg-brand-orange hover:text-white p-2 rounded-xl text-xs font-medium border border-[#2A241F] transition-colors">Кетчуп</button>
+          </div>
+          <div class="text-[11px] text-brand-muted border-t border-[#2A241F] pt-2">
+            Добавки по 100 ₽: 
+            <button onclick="addToCart('Добавка: Бекон', 100, event)" class="underline hover:text-brand-orange mr-1">Бекон</button>,
+            <button onclick="addToCart('Добавка: Сыр', 100, event)" class="underline hover:text-brand-orange mr-1">Сыр</button>,
+            <button onclick="addToCart('Добавка: Пита', 100, event)" class="underline hover:text-brand-orange mr-1">Пита</button>,
+            <button onclick="addToCart('Добавка: Яйцо-пашот', 100, event)" class="underline hover:text-brand-orange">Яйцо-пашот</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Модальное окно блюда (Детали + Конструктор) -->
+  <div id="dish-detail-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4">
+    <div id="dish-detail-box" class="bg-[#15120F] border border-brand-orange/40 w-full max-w-md rounded-3xl p-6 shadow-2xl relative transform transition-all">
+      <div class="flex items-start justify-between pb-3 border-b border-[#2A241F]">
+        <div>
+          <span id="detail-category-badge" class="text-[10px] uppercase font-bold tracking-widest text-brand-orange">КАФЕ ПАШОТ</span>
+          <h3 id="detail-dish-title" class="font-display font-black text-xl text-brand-cream uppercase mt-1"></h3>
+        </div>
+        <button id="close-detail-btn" class="w-8 h-8 rounded-full bg-[#201B17] hover:bg-brand-orange text-white flex items-center justify-center transition-colors">✕</button>
+      </div>
+
+      <div class="py-4 space-y-4">
+        <p id="detail-dish-desc" class="text-xs text-brand-muted leading-relaxed"></p>
+        
+        <div class="flex items-center justify-between text-xs bg-[#0E0C0A] p-3 rounded-2xl border border-[#2A241F]">
+          <span class="text-brand-muted">Выход порции:</span>
+          <span id="detail-dish-weight" class="font-bold text-brand-cream"></span>
+        </div>
+
+        <!-- Выбор быстрого соуса/топпинга -->
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-brand-orange mb-2">Добавить фирменный соус (+60 ₽):</label>
+          <div class="grid grid-cols-3 gap-1.5 text-xs">
+            <label class="flex items-center gap-1.5 p-2 rounded-xl bg-[#0E0C0A] border border-[#2A241F] cursor-pointer hover:border-brand-orange">
+              <input type="radio" name="detail-sauce" value="Без соуса" checked class="accent-brand-orange">
+              <span>Нет</span>
+            </label>
+            <label class="flex items-center gap-1.5 p-2 rounded-xl bg-[#0E0C0A] border border-[#2A241F] cursor-pointer hover:border-brand-orange">
+              <input type="radio" name="detail-sauce" value="Тар-Тар (+60₽)" class="accent-brand-orange">
+              <span>Тар-тар</span>
+            </label>
+            <label class="flex items-center gap-1.5 p-2 rounded-xl bg-[#0E0C0A] border border-[#2A241F] cursor-pointer hover:border-brand-orange">
+              <input type="radio" name="detail-sauce" value="Сырный (+60₽)" class="accent-brand-orange">
+              <span>Сырный</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="pt-4 border-t border-[#2A241F] flex items-center justify-between">
+        <div>
+          <span class="text-[10px] text-brand-muted uppercase">Стоимость:</span>
+          <div id="detail-dish-price" class="font-display font-black text-2xl text-brand-orange"></div>
+        </div>
+        <button id="detail-add-to-cart-btn" class="ripple-surface bg-brand-orange hover:bg-brand-orangeDark text-white font-bold text-xs uppercase tracking-wider px-5 py-3 rounded-2xl shadow-lg shadow-brand-orange/30 active:scale-95 transition-all">
+          Добавить в выбор +
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Модальное окно Корзины («Мой выбор») -->
+  <div id="cart-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden items-center justify-center p-4">
+    <div class="bg-[#14110E] border border-[#2A241F] w-full max-w-lg rounded-3xl p-6 shadow-2xl relative flex flex-col max-h-[85vh]">
+      
+      <div class="flex items-center justify-between border-b border-[#2A241F] pb-4 mb-4">
+        <div>
+          <h3 class="font-display font-black text-lg text-brand-cream uppercase">Мой выбор в Пашот</h3>
+          <p class="text-xs text-brand-muted">Список для заказа у бариста или официанта</p>
+        </div>
+        <button id="close-cart-btn" class="w-8 h-8 rounded-full bg-[#201B17] hover:bg-brand-orange text-white flex items-center justify-center transition-colors">
+          ✕
+        </button>
+      </div>
+
+      <!-- Список блюд в корзине -->
+      <div id="cart-items-list" class="flex-1 overflow-y-auto space-y-3 pr-1 no-scrollbar">
+        <!-- Заполняется в JS -->
+      </div>
+
+      <!-- Итог и копирование -->
+      <div class="border-t border-[#2A241F] pt-4 mt-4">
+        <div class="flex justify-between items-center mb-4">
+          <span class="text-xs uppercase tracking-wider text-brand-muted font-bold">Итого к оплате:</span>
+          <span id="cart-total-price" class="font-display font-black text-2xl text-brand-orange">0 ₽</span>
+        </div>
+        <div class="flex gap-2">
+          <button id="copy-order-btn" class="flex-1 bg-brand-orange hover:bg-brand-orangeDark text-white py-3 rounded-2xl font-bold text-xs uppercase tracking-wider transition-all shadow-lg active:scale-95">
+            📋 Скопировать заказ
+          </button>
+          <button id="clear-cart-btn" class="px-4 bg-[#201B17] hover:bg-red-950 text-red-400 py-3 rounded-2xl font-bold text-xs transition-colors">
+            Очистить
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Футер сайта -->
+  <footer class="bg-[#0E0B09] border-t border-[#2A241F] py-10 relative z-10 mt-16 text-xs text-brand-muted">
+    <div class="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-6">
+      
+      <div class="flex flex-col items-center md:items-start gap-1">
+        <span class="font-display font-black text-xl text-white tracking-wider">ПАШОТ</span>
+        <span class="text-brand-orange font-semibold tracking-widest uppercase text-[10px]">больше чем кафе</span>
+        <p class="mt-2 text-center md:text-left">г. Анапа, ул. Горького 6 • Тепло, лаунж и вкус каждый день</p>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <a href="https://t.me" target="_blank" class="w-10 h-10 rounded-2xl bg-brand-orange/15 hover:bg-brand-orange text-brand-orange hover:text-white flex items-center justify-center font-bold text-sm transition-all">
+          TG
+        </a>
+        <a href="https://vk.com" target="_blank" class="w-10 h-10 rounded-2xl bg-brand-orange/15 hover:bg-brand-orange text-brand-orange hover:text-white flex items-center justify-center font-bold text-sm transition-all">
+          VK
+        </a>
+      </div>
+
+    </div>
+  </footer>
+
+  <!-- Основной JavaScript движок -->
+  <script>
+    /* ==========================================================================
+       1. БАЗА ДАННЫХ МЕНЮ (ВСЕ ПОЗИЦИИ И ЦЕНЫ)
+       ========================================================================== */
+    const MENU_DATA = [
+      {
+        id: 'pasta',
+        title: 'Паста ручной работы',
+        subtitle: 'Все виды пасты подаются горячими с твердым сыром',
+        items: [
+          { name: 'Паста Сырная', desc: 'Нежный сливочный сырный крем, пармезан, чесночное масло', weight: '180г', price: 400 },
+          { name: 'Паста Болоньезе', desc: 'Классическое томленое мясо, сладкие томаты, розмарин', weight: '180г', price: 400 },
+          { name: 'Паста Карбонара', desc: 'Хрустящий бекон, сливки, яичный желток, пармезан', weight: '180г', price: 400 },
+          { name: 'Паста Курица-Грибы', desc: 'Сочное куриное филе, лесные грибы в сливках и лук-порей', weight: '180г', price: 400 },
+          { name: 'Паста Креветка-Песто', desc: 'Обжаренные креветки, базиликовый соус песто и черри', weight: '180г', price: 400 },
+          { name: 'Паста Острая Болоньезе', desc: 'Томленый мясной соус с пикантным перцем чили', weight: '180г', price: 400 }
+        ]
+      },
+      {
+        id: 'hot',
+        title: 'Очень горячо',
+        subtitle: 'Сытные горячие сковородочки и запеканки',
+        items: [
+          { name: 'Картофельная запеканка', desc: 'Куриное филе и сливочные грибы / Креветка и сливочный сыр / Рваная говядина и сыр', weight: '220г', price: 400 },
+          { name: 'Лазанья', desc: 'Форель и шпинат / Мясо и нежный сливочный соус бешамель', weight: '220г', price: 400 },
+          { name: 'Жульен с тостом', desc: 'Грибы, сливки, сыр. На выбор: курица / креветка / мидии / рапан', weight: '180г', price: 400 },
+          { name: 'Фрибокс', desc: 'Филе белой рыбы темпура / Креветки темпура / Куриные стрипсы с картофелем фри', weight: '140г', price: 400 }
+        ]
+      },
+      {
+        id: 'eggs',
+        title: 'Не просто яйцо & Завтраки',
+        subtitle: 'Завтраки с яйцом-пашот, драниками и тостами',
+        items: [
+          { name: 'Черноморский', desc: 'Глазунья / омлет / скрэмбл из двух яиц, креветка, мидии, томаты, тост', weight: '200г', price: 400 },
+          { name: 'Белорусский', desc: 'Два яйца на выбор, картофельный драник, хрустящая курица, жареные грибы', weight: '200г', price: 400 },
+          { name: 'Деревенский', desc: 'Два яйца, картофельные дольки, жареные сосиски, тост с маринованным огурцом', weight: '200г', price: 400 },
+          { name: 'Картофельный хашбраун', desc: 'Картофельный драник с яйцом пашот, сливочный соус. Бекон / лосось / курица / креветка', weight: '200г', price: 400 },
+          { name: 'Яйцо пашот на тосте', desc: 'Хрустящий тост с яйцом пашот и сырным голландезом. Бекон / лосось / курица / креветка', weight: '180г', price: 400 }
+        ]
+      },
+      {
+        id: 'toasts',
+        title: 'Бриошь-Тосты & Роти',
+        subtitle: 'Пышный хлеб бриошь и лепешки роти',
+        items: [
+          { name: 'Кубанский тост', desc: 'Бриошь, куриное филе, глазунья, бекон, огурец, домашний айоли, картофельные дольки', weight: '200г', price: 400 },
+          { name: 'Тайский тост', desc: 'Бриошь, скрэмбл, соус том-ям, креветки, смесь семян, микс салата', weight: '200г', price: 400 },
+          { name: 'Техасский тост', desc: 'Бриошь с рваной говядиной, соус барбекю, глазунья, маринованный огурец, картофель фри', weight: '200г', price: 400 },
+          { name: 'Роти с картофелем и сыром', desc: 'Хрустящая лепешка роти, нежный картофель и сыр', weight: '140г', price: 200 },
+          { name: 'Роти с начинками', desc: 'Курица су-вид / Тар-тар лосось с песто / Рваная говядина барбекю', weight: '140г', price: 400 }
+        ]
+      },
+      {
+        id: 'sweet',
+        title: 'По бабушкиному рецепту',
+        subtitle: 'Сырники, домашние вареники и пельмени',
+        items: [
+          { name: 'Сырники из творога', desc: 'Банан и шоколад / ягода и сметанный мусс', weight: '140г', price: 200 },
+          { name: 'Ленивые вареники', desc: 'Клубника и нежный сметанный мусс', weight: '160г', price: 400 },
+          { name: 'Вареники с вишней', desc: 'Сочная вишня и легкий сметанный мусс', weight: '180г', price: 400 },
+          { name: 'Вареники с картофелем', desc: 'Сметанный мусс и хрустящий лук фри', weight: '180г', price: 400 },
+          { name: 'Пельмени домашние', desc: 'Сметанный мусс и хрустящий лук фри', weight: '180г', price: 400 }
+        ]
+      },
+      {
+        id: 'special-coffee',
+        title: 'Фирменный кофе (по 400 ₽)',
+        subtitle: 'Сливочные десертные рафы с топпингами',
+        items: [
+          { name: 'Раф Печеный банан', desc: 'Печеный банан, сироп банан, сливки, кофе', weight: '320мл', price: 400 },
+          { name: 'Сырный раф', desc: 'Сливочный сыр, пармезан, соленая карамель, сливки, кофе', weight: '320мл', price: 400 },
+          { name: 'Арахисовый сникерс', desc: 'Арахис, арахисовая паста, сол. карамель, сливки, кофе', weight: '320мл', price: 400 },
+          { name: 'Раф-Халва', desc: 'Сливки, натуральная халва, дробленый арахис, кофе', weight: '320мл', price: 400 },
+          { name: 'Раф-Фисташка', desc: 'Фисташки, сливки, фисташковый сироп, кофе', weight: '320мл', price: 400 },
+          { name: 'Раф-Лаванда', desc: 'Сливки, сироп горной лаванды, кофе', weight: '320мл', price: 400 },
+          { name: 'Раф-Кокос', desc: 'Сливки, сол. карамель, кокосовая стружка, кофе', weight: '320мл', price: 400 },
+          { name: 'Раф-Медовый', desc: 'Натуральный мед, сливки, кофе', weight: '320мл', price: 400 }
+        ]
+      },
+      {
+        id: 'classic-coffee',
+        title: 'Классический кофе',
+        subtitle: 'Эспрессо, напитки на молоке и бамбл',
+        items: [
+          { name: 'Эспрессо 2х', desc: 'Двойная порция бодрящего спешелти эспрессо', weight: '80мл', price: 200 },
+          { name: 'Американо 2х / с молоком / сгущ. мол.', desc: 'Классический черный или сливочный', weight: '220-240мл', price: 200 },
+          { name: 'Капучино', desc: 'Шелковистая молочная пенка и спешелти зерно', weight: '180/320мл', price: '200 / 300' },
+          { name: 'Флэт-уайт', desc: 'Двойной шот эспрессо и бархатное молоко', weight: '180/320мл', price: '200 / 400' },
+          { name: 'Латте / Латте Матча', desc: 'Мягкий молочный кофе или японский чай матча', weight: '320мл', price: 300 },
+          { name: 'Раф классический / Раф Матча', desc: 'Взбитые сливки с эспрессо или матчей', weight: '320мл', price: 400 },
+          { name: 'Горячий-Бамбл', desc: 'Карамельный горячий апельсиновый сок с эспрессо', weight: '320мл', price: 400 },
+          { name: 'Какао с маршмеллоу', desc: 'Взбитые сливки, маршмеллоу, бельгийское какао', weight: '320мл', price: 300 }
+        ]
+      },
+      {
+        id: 'cold-drinks',
+        title: 'Холодные напитки, Смузи и Лимонады',
+        subtitle: 'Освежающий лед и свежие фрукты',
+        items: [
+          { name: 'Фраппе с мороженым', desc: 'Мороженое пломбир, кофе, сироп, колотый лед', weight: '320мл', price: 400 },
+          { name: 'Айс-Капучино / Айс-Латте / Айс-Тоник', desc: 'Освежающий эспрессо со льдом и тоником', weight: '200-320мл', price: 300 },
+          { name: 'Айс-Бамбл / Айс-Супер Бамбл', desc: 'Апельсиновый сок или свежевыжатый фреш с эспрессо', weight: '200-320мл', price: 400 },
+          { name: 'Лимонады Пашот (в ассортименте)', desc: 'Манго-маракуйя, Облепиха-апельсин, Клубника-вишня, Личи', weight: '340мл', price: 400 },
+          { name: 'Заряжающий смузи', desc: 'Персик-банан, Микс ягод, Манго-банан, Клубника-банан', weight: '220/320мл', price: '200 / 400' },
+          { name: 'Свежевыжатые соки', desc: 'Апельсин, Апельсин-лимон, Апельсин-грейпфрут', weight: '200мл', price: 400 }
+        ]
+      },
+      {
+        id: 'tea',
+        title: 'Фирменный чай и Глинтвейн',
+        subtitle: 'Согревающие ягодные и пряные сборы',
+        items: [
+          { name: 'Кружка чая в ассортименте', desc: 'Жасмин, Эрл-грей, Ассам, Сенча, Травяной, Молочный улун', weight: '320мл', price: 100 },
+          { name: 'Чайник чая', desc: 'Листовой чай премиального сбора на компанию', weight: '800мл', price: 300 },
+          { name: 'Чайный глинтвейн (кружка)', desc: 'Цитрусы, корица, бадьян, ягодная основа', weight: '320мл', price: 200 },
+          { name: 'Чайный глинтвейн (чайник)', desc: 'Облепиха-апельсин, Манго-маракуйя, Розмарин-клубника', weight: '800мл', price: 400 }
+        ]
+      }
+    ];
+
+    /* ==========================================================================
+       2. АРМИРОВАННЫЙ ИНТЕРАКТИВНЫЙ ФОН НА CANVAS (MESH DEFORMATION + BOKEH)
+       ========================================================================== */
+    const canvas = document.getElementById('ambient-canvas');
+    const ctx = canvas.getContext('2d');
+    let width, height;
+    let gridNodes = [];
+    let bokehOrbs = [];
+    let mouse = { x: -1000, y: -1000, targetX: -1000, targetY: -1000, speed: 0 };
+    const SPACING = 52; // шаг армированной сетки
+
+    function resizeCanvas() {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+      initGrid();
+      initBokeh();
+    }
+
+    // Инициализация сетки узлов с физикой пружин
+    function initGrid() {
+      gridNodes = [];
+      const cols = Math.ceil(width / SPACING) + 2;
+      const rows = Math.ceil(height / SPACING) + 2;
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          const originX = (x - 1) * SPACING;
+          const originY = (y - 1) * SPACING;
+          gridNodes.push({
+            originX,
+            originY,
+            x: originX,
+            y: originY,
+            vx: 0,
+            vy: 0,
+            col: x,
+            row: y
+          });
+        }
+      }
+    }
+
+    function initBokeh() {
+      bokehOrbs = [];
+      for (let i = 0; i < 18; i++) {
+        bokehOrbs.push({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          r: 30 + Math.random() * 80,
+          vy: -0.2 - Math.random() * 0.35,
+          alpha: 0.04 + Math.random() * 0.08
+        });
+      }
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    window.addEventListener('mousemove', (e) => {
+      mouse.targetX = e.clientX;
+      mouse.targetY = e.clientY;
+
+      const glow = document.getElementById('cursor-glow');
+      if (glow) {
+        glow.style.transform = `translate3d(${e.clientX}px, ${e.clientY}px, 0)`;
+      }
+    });
+
+    function updatePhysics() {
+      const dx = mouse.targetX - mouse.x;
+      const dy = mouse.targetY - mouse.y;
+      mouse.x += dx * 0.15;
+      mouse.y += dy * 0.15;
+      mouse.speed = Math.sqrt(dx * dx + dy * dy);
+
+      // Обновление армированных узлов
+      for (let node of gridNodes) {
+        // Сила воздействия курсора (упругое отталкивание)
+        const distMouseX = node.x - mouse.x;
+        const distMouseY = node.y - mouse.y;
+        const dist = Math.sqrt(distMouseX * distMouseX + distMouseY * distMouseY);
+        const radius = 170;
+
+        if (dist < radius && dist > 0.001) {
+          const force = (1 - dist / radius) * 26;
+          node.vx += (distMouseX / dist) * force;
+          node.vy += (distMouseY / dist) * force;
+        }
+
+        // Возврат пружины к origin
+        const springX = (node.originX - node.x) * 0.08;
+        const springY = (node.originY - node.y) * 0.08;
+        node.vx = (node.vx + springX) * 0.82; // затухание
+        node.vy = (node.vy + springY) * 0.82;
+
+        node.x += node.vx;
+        node.y += node.vy;
+      }
+    }
+
+    function renderBackground() {
+      ctx.clearRect(0, 0, width, height);
+
+      // 1. Теплые мягкие шары боке
+      for (let b of bokehOrbs) {
+        b.y += b.vy;
+        if (b.y < -b.r) b.y = height + b.r;
+        const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
+        g.addColorStop(0, `rgba(230, 100, 30, ${b.alpha * 1.5})`);
+        g.addColorStop(0.6, `rgba(230, 100, 30, ${b.alpha * 0.5})`);
+        g.addColorStop(1, 'transparent');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 2. Армированная сетка (линии соединения)
+      const cols = Math.ceil(width / SPACING) + 2;
+      ctx.lineWidth = 0.85;
+      
+      for (let i = 0; i < gridNodes.length; i++) {
+        const node = gridNodes[i];
+        
+        // Линия вправо
+        if (node.col < cols - 1 && i + 1 < gridNodes.length) {
+          const rightNode = gridNodes[i + 1];
+          if (rightNode.row === node.row) {
+            drawLine(node, rightNode);
+          }
+        }
+        // Линия вниз
+        if (i + cols < gridNodes.length) {
+          const downNode = gridNodes[i + cols];
+          drawLine(node, downNode);
+        }
+      }
+
+      // 3. Узлы сетки (точки)
+      for (let node of gridNodes) {
+        const d = Math.hypot(node.x - mouse.x, node.y - mouse.y);
+        const nearMouse = d < 150;
+        ctx.fillStyle = nearMouse ? 'rgba(230, 100, 30, 0.75)' : 'rgba(255, 255, 255, 0.08)';
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, nearMouse ? 2.2 : 1.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function drawLine(p1, p2) {
+      const midX = (p1.x + p2.x) * 0.5;
+      const midY = (p1.y + p2.y) * 0.5;
+      const distToMouse = Math.hypot(midX - mouse.x, midY - mouse.y);
+
+      let alpha = 0.04;
+      let strokeStyle = 'rgba(255, 255, 255, 0.04)';
+
+      if (distToMouse < 180) {
+        const factor = 1 - distToMouse / 180;
+        alpha = 0.05 + factor * 0.38;
+        strokeStyle = `rgba(230, 100, 30, ${alpha})`;
+      }
+
+      ctx.strokeStyle = strokeStyle;
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+    }
+
+    function animLoop() {
+      updatePhysics();
+      renderBackground();
+      requestAnimationFrame(animLoop);
+    }
+    animLoop();
+
+    /* ==========================================================================
+       3. АВТОНОМНЫЙ DEEP HOUSE / LOUNGE СИНТЕЗАТОР (WEB AUDIO API)
+       ========================================================================== */
+    class DeepHouseLoungeEngine {
+      constructor() {
+        this.ctx = null;
+        this.isPlaying = false;
+        this.currentTrack = 0;
+        this.tempo = 118; // BPM
+        this.step = 0;
+        this.interval = null;
+
+        this.tracks = [
+          {
+            title: 'Anapa Sunset Lounge',
+            bpm: 118,
+            subDesc: 'Deep House 118 BPM ♡',
+            scale: [174.61, 207.65, 261.63, 311.13, 349.23], // Fm pentatonic/chords
+            chords: [
+              [174.61, 261.63, 311.13, 392.00], // Fm9
+              [138.59, 207.65, 261.63, 329.63], // Dbmaj7
+              [116.54, 174.61, 233.08, 277.18], // Bbm7
+              [130.81, 196.00, 246.94, 311.13]  // C7
+            ]
+          },
+          {
+            title: 'Pashtet & Coffee Deep',
+            bpm: 120,
+            subDesc: 'Warm Chords 120 BPM ♡',
+            scale: [196.00, 233.08, 261.63, 293.66, 349.23],
+            chords: [
+              [196.00, 293.66, 349.23, 440.00], // Gm9
+              [146.83, 220.00, 261.63, 329.63], // Dm7
+              [164.81, 246.94, 293.66, 392.00], // Em7b5
+              [174.61, 261.63, 329.63, 392.00]  // Fmaj7
+            ]
+          },
+          {
+            title: 'Night Terrace Vibes',
+            bpm: 115,
+            subDesc: 'Chillhouse & Rhodes 115 BPM ♡',
+            scale: [220.00, 261.63, 293.66, 329.63, 392.00],
+            chords: [
+              [220.00, 329.63, 392.00, 493.88], // Am9
+              [174.61, 261.63, 329.63, 392.00], // Fmaj7
+              [130.81, 196.00, 261.63, 329.63], // Cmaj7
+              [146.83, 220.00, 261.63, 349.23]  // Dm7
+            ]
+          }
+        ];
+      }
+
+      initAudio() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioContext();
+
+          // Мастер-фильтр и компрессор для глубокого плотного дип-хаус звука
+          this.masterGain = this.ctx.createGain();
+          this.masterGain.gain.setValueAtTime(0.55, this.ctx.currentTime);
+
+          this.compressor = this.ctx.createDynamicsCompressor();
+          this.compressor.threshold.setValueAtTime(-14, this.ctx.currentTime);
+          this.compressor.knee.setValueAtTime(8, this.ctx.currentTime);
+          this.compressor.ratio.setValueAtTime(4, this.ctx.currentTime);
+
+          this.masterGain.connect(this.compressor);
+          this.compressor.connect(this.ctx.destination);
+        }
+      }
+
+      // Глубокий 4/4 суб-кик (Deep House Bassdrum)
+      playDeepKick(time) {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.frequency.setValueAtTime(130, time);
+        osc.frequency.exponentialRampToValueAtTime(36, time + 0.16);
+
+        gain.gain.setValueAtTime(0.7, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.38);
+
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+
+        osc.start(time);
+        osc.stop(time + 0.4);
+      }
+
+      // Бархатный Rhodes / Pad стаб
+      playLoungeChord(notes, time) {
+        notes.forEach((freq, i) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          const filter = this.ctx.createBiquadFilter();
+
+          osc.type = i === 0 ? 'sine' : 'triangle';
+          osc.frequency.setValueAtTime(freq + (Math.random() - 0.5) * 1.5, time);
+
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(650, time);
+          filter.frequency.exponentialRampToValueAtTime(1200, time + 0.1);
+          filter.frequency.exponentialRampToValueAtTime(450, time + 0.8);
+
+          gain.gain.setValueAtTime(0.001, time);
+          gain.gain.linearRampToValueAtTime(0.065 / (i + 1), time + 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.0001, time + 1.4);
+
+          osc.connect(filter);
+          filter.connect(gain);
+          gain.connect(this.masterGain);
+
+          osc.start(time);
+          osc.stop(time + 1.5);
+        });
+      }
+
+      // Мягкий дип-хаус хэт (Hi-Hat)
+      playSoftHat(time) {
+        const bufferSize = this.ctx.sampleRate * 0.05;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.3));
+        }
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.setValueAtTime(7500, time);
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.09, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.045);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+
+        noise.start(time);
+      }
+
+      tick() {
+        if (!this.isPlaying) return;
+        const now = this.ctx.currentTime;
+        const track = this.tracks[this.currentTrack];
+        const step16 = this.step % 16;
+
+        // Прямой 4/4 кик на каждый 4-й шаг (1, 5, 9, 13)
+        if (step16 % 4 === 0) {
+          this.playDeepKick(now);
+          this.pulseVisualizer();
+        }
+
+        // Хэты на слабую долю (3, 7, 11, 15)
+        if (step16 % 4 === 2) {
+          this.playSoftHat(now);
+        }
+
+        // Лаунж-аккорды на синкопах (шаг 0 и 6)
+        if (step16 === 0 || step16 === 6) {
+          const chordIndex = Math.floor(this.step / 16) % track.chords.length;
+          this.playLoungeChord(track.chords[chordIndex], now);
+        }
+
+        this.step++;
+      }
+
+      pulseVisualizer() {
+        const bars = document.querySelectorAll('#audio-bars div');
+        bars.forEach(bar => {
+          const h = 4 + Math.random() * 16;
+          bar.style.height = `${h}px`;
+        });
+      }
+
+      toggle() {
+        this.initAudio();
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+
+        this.isPlaying = !this.isPlaying;
+        const playIcon = document.getElementById('play-icon');
+        const pauseIcon = document.getElementById('pause-icon');
+
+        if (this.isPlaying) {
+          playIcon.classList.add('hidden');
+          pauseIcon.classList.remove('hidden');
+          const stepTimeMs = (60 / this.tracks[this.currentTrack].bpm / 4) * 1000;
+          this.interval = setInterval(() => this.tick(), stepTimeMs);
+        } else {
+          playIcon.classList.remove('hidden');
+          pauseIcon.classList.add('hidden');
+          clearInterval(this.interval);
+          document.querySelectorAll('#audio-bars div').forEach(b => b.style.height = '4px');
+        }
+      }
+
+      nextTrack() {
+        this.currentTrack = (this.currentTrack + 1) % this.tracks.length;
+        this.step = 0;
+        const cur = this.tracks[this.currentTrack];
+        document.getElementById('track-title').innerText = cur.title;
+
+        if (this.isPlaying) {
+          clearInterval(this.interval);
+          const stepTimeMs = (60 / cur.bpm / 4) * 1000;
+          this.interval = setInterval(() => this.tick(), stepTimeMs);
+        }
+      }
+    }
+
+    const loungePlayer = new DeepHouseLoungeEngine();
+    document.getElementById('audio-play-btn').addEventListener('click', () => loungePlayer.toggle());
+    document.getElementById('track-next-btn').addEventListener('click', () => loungePlayer.nextTrack());
+
+    /* ==========================================================================
+       4. КОРЗИНА И ВЫЛЕТАЮЩАЯ ТОЧКА (FLYING EFFECT)
+       ========================================================================== */
+    let cart = [];
+
+    function animateFlyToCart(sourceEvent) {
+      if (!sourceEvent) return;
+      const cartBtn = document.getElementById('open-cart-btn');
+      const cartRect = cartBtn.getBoundingClientRect();
+
+      const dot = document.createElement('div');
+      dot.className = 'fly-dot';
+      const startX = sourceEvent.clientX || (sourceEvent.target.getBoundingClientRect().left + 15);
+      const startY = sourceEvent.clientY || (sourceEvent.target.getBoundingClientRect().top + 15);
+
+      dot.style.left = `${startX}px`;
+      dot.style.top = `${startY}px`;
+      document.body.appendChild(dot);
+
+      requestAnimationFrame(() => {
+        const destX = cartRect.left + cartRect.width / 2 - startX;
+        const destY = cartRect.top + cartRect.height / 2 - startY;
+        dot.style.transform = `translate(${destX}px, ${destY}px) scale(0.3)`;
+        dot.style.opacity = '0.3';
+      });
+
+      setTimeout(() => {
+        dot.remove();
+        cartBtn.classList.add('scale-110');
+        setTimeout(() => cartBtn.classList.remove('scale-110'), 220);
+      }, 650);
+    }
+
+    window.addToCart = function(name, price, event) {
+      if (event) {
+        event.stopPropagation();
+        animateFlyToCart(event);
+      }
+      const existing = cart.find(i => i.name === name);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        cart.push({ name, price, count: 1 });
+      }
+      updateCartUI();
+    };
+
+    function updateCartUI() {
+      const counter = document.getElementById('cart-counter');
+      const totalCount = cart.reduce((s, i) => s + i.count, 0);
+      counter.innerText = totalCount;
+
+      const list = document.getElementById('cart-items-list');
+      const totalEl = document.getElementById('cart-total-price');
+
+      if (cart.length === 0) {
+        list.innerHTML = `
+          <div class="py-12 text-center text-brand-muted">
+            <p class="font-script text-3xl text-brand-orange mb-1">Корзина пуста ♡</p>
+            <p class="text-xs">Нажмите «+» у любого блюда, чтобы собрать заказ</p>
+          </div>
+        `;
+        totalEl.innerText = '0 ₽';
+        return;
+      }
+
+      let total = 0;
+      list.innerHTML = cart.map((item, idx) => {
+        const p = typeof item.price === 'number' ? item.price : parseInt(item.price) || 200;
+        total += p * item.count;
+        return `
+          <div class="flex items-center justify-between bg-[#191512] p-3 rounded-2xl border border-[#2A241F]">
+            <div>
+              <p class="font-bold text-xs sm:text-sm text-brand-cream">${item.name}</p>
+              <p class="text-[11px] text-brand-orange">${item.price} ₽</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="changeCartCount(${idx}, -1)" class="w-6 h-6 rounded-lg bg-[#25201B] hover:bg-brand-orange text-white text-xs flex items-center justify-center font-bold">-</button>
+              <span class="text-xs font-bold text-white px-1">${item.count}</span>
+              <button onclick="changeCartCount(${idx}, 1)" class="w-6 h-6 rounded-lg bg-[#25201B] hover:bg-brand-orange text-white text-xs flex items-center justify-center font-bold">+</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      totalEl.innerText = `${total} ₽`;
+    }
+
+    window.changeCartCount = function(idx, delta) {
+      if (!cart[idx]) return;
+      cart[idx].count += delta;
+      if (cart[idx].count <= 0) cart.splice(idx, 1);
+      updateCartUI();
+    };
+
+    /* ==========================================================================
+       5. 3D-TILT ЭФФЕКТ ДЛЯ КАРТОЧЕК МЕНЮ
+       ========================================================================== */
+    function applyCardTilt(card) {
+      card.addEventListener('mousemove', (e) => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+
+        const rotateX = ((y - centerY) / centerY) * -7;
+        const rotateY = ((x - centerX) / centerX) * 7;
+
+        card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-4px)`;
+        card.style.setProperty('--mouse-x', `${(x / rect.width) * 100}%`);
+        card.style.setProperty('--mouse-y', `${(y / rect.height) * 100}%`);
+      });
+
+      card.addEventListener('mouseleave', () => {
+        card.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateY(0)';
+      });
+    }
+
+    /* ==========================================================================
+       6. РЕНДЕРИНГ МЕНЮ И ТАБОВ
+       ========================================================================== */
+    function renderTabs() {
+      const bar = document.getElementById('category-bar');
+      bar.innerHTML = MENU_DATA.map((cat, i) => `
+        <button onclick="scrollToCat('${cat.id}')" 
+                class="category-btn whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-all border ${i === 0 ? 'bg-brand-orange text-white border-brand-orange shadow-md' : 'bg-[#15120F] text-brand-muted border-[#2A241F] hover:text-brand-cream hover:border-brand-orange/40'}" 
+                data-id="${cat.id}">
+          ${cat.title.split(' (')[0]}
+        </button>
+      `).join('');
+    }
+
+    function renderMenu(query = '') {
+      const container = document.getElementById('menu-sections-container');
+      const q = query.toLowerCase().trim();
+
+      const html = MENU_DATA.map(sec => {
+        const filtered = sec.items.filter(it => 
+          it.name.toLowerCase().includes(q) || it.desc.toLowerCase().includes(q)
+        );
+        if (filtered.length === 0) return '';
+
+        return `
+          <section id="${sec.id}" class="reveal-on-scroll">
+            <div class="mb-5 border-b border-[#2A241F] pb-3 flex flex-col sm:flex-row sm:items-end justify-between gap-1">
+              <div>
+                <h2 class="font-display font-black text-lg sm:text-2xl text-brand-cream uppercase tracking-tight">
+                  ${sec.title}
+                </h2>
+                <p class="text-xs text-brand-muted mt-0.5">${sec.subtitle}</p>
+              </div>
+              <div class="w-10 h-[2px] bg-brand-orange hidden sm:block"></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              ${filtered.map(item => `
+                <div class="dish-card-3d relative bg-[#14110E] hover:bg-[#1A1612] p-4 rounded-2xl border border-[#26201B] hover:border-brand-orange/60 shadow-lg cursor-pointer group" onclick="openDishDetail('${item.name.replace(/'/g, "\\'")}', '${item.desc.replace(/'/g, "\\'")}', '${item.weight}', '${item.price}', '${sec.title}')">
+                  <div class="card-glare"></div>
+                  
+                  <div class="flex items-start justify-between gap-3 relative z-10">
+                    <div class="flex-1">
+                      <div class="flex items-baseline gap-2 mb-1">
+                        <h3 class="font-bold text-sm text-brand-cream group-hover:text-brand-orange transition-colors">
+                          ${item.name}
+                        </h3>
+                        <span class="text-[10px] font-semibold text-brand-muted/70 tracking-wider">${item.weight}</span>
+                      </div>
+                      <p class="text-xs text-brand-muted/90 line-clamp-2 leading-relaxed">${item.desc}</p>
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                      <span class="font-display font-black text-sm sm:text-base text-brand-cream whitespace-nowrap">
+                        ${item.price} ₽
+                      </span>
+                      <button onclick="addToCart('${item.name.replace(/'/g, "\\'")}', '${item.price}', event)" 
+                              class="ripple-surface w-8 h-8 rounded-full bg-[#201A16] group-hover:bg-brand-orange text-brand-orange group-hover:text-white flex items-center justify-center font-bold text-base transition-all shadow-md active:scale-90"
+                              title="Быстро добавить">
+                        +
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </section>
+        `;
+      }).join('');
+
+      container.innerHTML = html || `
+        <div class="py-16 text-center text-brand-muted">
+          <p class="font-script text-3xl text-brand-orange mb-2">Ничего не найдено ♡</p>
+          <p class="text-sm">Попробуйте ввести другое название, например «Паста» или «Раф»</p>
+        </div>
+      `;
+
+      // Применяем 3D-Tilt ко всем новым карточкам
+      document.querySelectorAll('.dish-card-3d').forEach(applyCardTilt);
+      initScrollReveal();
+    }
+
+    window.scrollToCat = function(id) {
+      const el = document.getElementById(id);
+      if (el) {
+        const offset = 120;
+        const pos = el.getBoundingClientRect().top + window.pageYOffset - offset;
+        window.scrollTo({ top: pos, behavior: 'smooth' });
+      }
+
+      document.querySelectorAll('.category-btn').forEach(btn => {
+        if (btn.dataset.id === id) {
+          btn.className = 'category-btn whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-all border bg-brand-orange text-white border-brand-orange shadow-md';
+        } else {
+          btn.className = 'category-btn whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-all border bg-[#15120F] text-brand-muted border-[#2A241F] hover:text-brand-cream hover:border-brand-orange/40';
+        }
+      });
+    };
+
+    /* ==========================================================================
+       7. МОДАЛЬНОЕ ОКНО ДЕТАЛЕЙ БЛЮДА
+       ========================================================================== */
+    const detailModal = document.getElementById('dish-detail-modal');
+    let currentDetailItem = null;
+
+    window.openDishDetail = function(name, desc, weight, price, catTitle) {
+      currentDetailItem = { name, desc, weight, price };
+      document.getElementById('detail-category-badge').innerText = catTitle;
+      document.getElementById('detail-dish-title').innerText = name;
+      document.getElementById('detail-dish-desc').innerText = desc;
+      document.getElementById('detail-dish-weight').innerText = weight;
+      document.getElementById('detail-dish-price').innerText = `${price} ₽`;
+
+      // Сброс соуса
+      document.querySelector('input[name="detail-sauce"][value="Без соуса"]').checked = true;
+
+      detailModal.classList.remove('hidden');
+      detailModal.classList.add('flex');
+    };
+
+    document.getElementById('close-detail-btn').addEventListener('click', () => {
+      detailModal.classList.add('hidden');
+      detailModal.classList.remove('flex');
+    });
+
+    document.getElementById('detail-add-to-cart-btn').addEventListener('click', (e) => {
+      if (!currentDetailItem) return;
+      const sauceVal = document.querySelector('input[name="detail-sauce"]:checked').value;
+      const basePrice = typeof currentDetailItem.price === 'number' ? currentDetailItem.price : parseInt(currentDetailItem.price) || 200;
+
+      if (sauceVal === 'Без соуса') {
+        addToCart(currentDetailItem.name, currentDetailItem.price, e);
+      } else {
+        addToCart(`${currentDetailItem.name} + ${sauceVal}`, basePrice + 60, e);
+      }
+
+      detailModal.classList.add('hidden');
+      detailModal.classList.remove('flex');
+    });
+
+    /* ==========================================================================
+       8. СКРОЛЛ-РЕВИЛ И RIPPLE ЭФФЕКТ
+       ========================================================================== */
+    function initScrollReveal() {
+      const elements = document.querySelectorAll('.reveal-on-scroll');
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('revealed');
+          }
+        });
+      }, { threshold: 0.1 });
+
+      elements.forEach(el => observer.observe(el));
+    }
+
+    document.addEventListener('click', (e) => {
+      const ripple = e.target.closest('.ripple-surface');
+      if (!ripple) return;
+      const rect = ripple.getBoundingClientRect();
+      const wave = document.createElement('span');
+      wave.className = 'ripple-wave';
+      const size = Math.max(rect.width, rect.height) * 1.5;
+      wave.style.width = wave.style.height = `${size}px`;
+      wave.style.left = `${e.clientX - rect.left - size / 2}px`;
+      wave.style.top = `${e.clientY - rect.top - size / 2}px`;
+      ripple.appendChild(wave);
+      setTimeout(() => wave.remove(), 700);
+    });
+
+    /* ==========================================================================
+       9. КОРЗИНА И ЖИВОЙ ПОИСК
+       ========================================================================== */
+    const cartModal = document.getElementById('cart-modal');
+    document.getElementById('open-cart-btn').addEventListener('click', () => {
+      cartModal.classList.remove('hidden');
+      cartModal.classList.add('flex');
+    });
+    document.getElementById('close-cart-btn').addEventListener('click', () => {
+      cartModal.classList.add('hidden');
+      cartModal.classList.remove('flex');
+    });
+    document.getElementById('clear-cart-btn').addEventListener('click', () => {
+      cart = [];
+      updateCartUI();
+    });
+    document.getElementById('copy-order-btn').addEventListener('click', () => {
+      if (cart.length === 0) return;
+      const text = `Кафе «ПАШОТ» (г. Анапа, ул. Горького 6)\nЗаказ:\n` + 
+        cart.map(i => `• ${i.name} (x${i.count}) — ${i.price * i.count} ₽`).join('\n') + 
+        `\nИтого: ${document.getElementById('cart-total-price').innerText}`;
+      
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+
+      const btn = document.getElementById('copy-order-btn');
+      const orig = btn.innerText;
+      btn.innerText = '✓ Скопировано!';
+      setTimeout(() => btn.innerText = orig, 1800);
+    });
+
+    const searchInput = document.getElementById('menu-search-input');
+    const searchClear = document.getElementById('search-clear-btn');
+    searchInput.addEventListener('input', (e) => {
+      const val = e.target.value;
+      searchClear.classList.toggle('hidden', val.length === 0);
+      renderMenu(val);
+    });
+    searchClear.addEventListener('click', () => {
+      searchInput.value = '';
+      searchClear.classList.add('hidden');
+      renderMenu();
+    });
+
+    // Инициализация при старте
+    renderTabs();
+    renderMenu();
+    updateCartUI();
+  </script>
+</body>
+</html>
